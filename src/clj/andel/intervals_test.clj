@@ -7,29 +7,29 @@
 
 (deftest simple-insert
   (let [itree (-> (make-interval-tree)
-                  (add-intervals [{:from 5 :to 10}]))]
-    (is (= (tree->intervals itree) [{:from 5 :to 10}]))))
+                  (add-intervals [{:from 5 :to 10 :greedy-left? false}]))]
+    (is (= (tree->intervals itree) [{:from 5 :to 10 :greedy-left? false}]))))
 
 (deftest multiple-insertitions
-  (let [intervals [{:from 1 :to 10}
-                   {:from 9 :to 11}
-                   {:from 8 :to 12}
-                   {:from 3 :to 17}
-                   {:from 2 :to 18}                 
-                   {:from 7 :to 13}
-                   {:from 6 :to 14}
-                   {:from 5 :to 15}
-                   {:from 4 :to 16}]
+  (let [intervals [{:from 1 :to 10 :greedy-left? false}
+                   {:from 9 :to 11 :greedy-left? false}
+                   {:from 8 :to 12 :greedy-left? false}
+                   {:from 3 :to 17 :greedy-left? false}
+                   {:from 2 :to 18 :greedy-left? false}
+                   {:from 7 :to 13 :greedy-left? false}
+                   {:from 6 :to 14 :greedy-left? false}
+                   {:from 5 :to 15 :greedy-left? false}
+                   {:from 4 :to 16 :greedy-left? false}]
         itree (reduce add-intervals (make-interval-tree) (map vector intervals))]
     (is (= (tree->intervals itree) (sort-by :from intervals)))))
 
 (deftest bulk-insertitions
-  (let [intervals (sort-by :from  [{:from 0 :to 10}
-                                   {:from 0 :to 11}
-                                   {:from 0 :to 12}
-                                   {:from 0 :to 17}
-                                   {:from 2 :to 18}                   
-                                   {:from 7 :to 13}
+  (let [intervals (sort-by :from  [{:from 0 :to 10 :greedy-left? false}
+                                   {:from 0 :to 11 :greedy-left? false}
+                                   {:from 0 :to 12 :greedy-left? false}
+                                   {:from 0 :to 17 :greedy-left? false}
+                                   {:from 2 :to 18 :greedy-left? false}
+                                   {:from 7 :to 13 :greedy-left? false}
                                    {:from 6 :to 14}
                                    {:from 5 :to 15}
                                    {:from 4 :to 16}])
@@ -50,9 +50,10 @@
 
 (def intervals-bulk-gen (g/fmap (fn [v] (vec (sort-by :from v)))
                                 (g/vector
-                                 (g/fmap (fn [[a b]] {:from (min a b) :to (max a b)})
+                                 (g/fmap (fn [[a b g?]] {:from (min a b) :to (max a b) :greedy-rightest? g?})
                                          (g/tuple (g/large-integer* {:min 0 :max 10000})
-                                                  (g/large-integer* {:min 0 :max 10000})))
+                                                  (g/large-integer* {:min 0 :max 10000})
+                                                  g/boolean))
                                  0 100)))
 
 
@@ -80,10 +81,10 @@
               (cond
                 (and  (<= from offset) (< offset to))
                 {:from from :to (+ to size)}
-                
+
                 (< offset from)
                 {:from (+ from size) :to (+ to size)}
-                
+
                 :else
                 interval)))
        vec))
@@ -132,7 +133,7 @@
                                                                          (add-intervals bulk))]
                                                   (map query-intervals (repeat generated-tree) queries))))))))
 
-(comment 
+(comment
   (run-tests)
 
   [[[{:from 0, :to 1}]
@@ -146,11 +147,10 @@
       (query-intervals 0 0))
 
   (intersect {:from 0 :to 1} {:from 0 :to 0})
-  
+
   (-> (make-interval-tree)
       (query-intervals 2 2))
 
   (play-type-in [{:from 0 :to 1}] 0 1)
-  
-  (clojure.test/test-vars [#'andel.intervals-test/generative]))
 
+  (clojure.test/test-vars [#'andel.intervals-test/generative]))
