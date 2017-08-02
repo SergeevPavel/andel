@@ -5,12 +5,12 @@
 (def plus-infinity #?(:cljs js/Number.POSITIVE_INFINITY
                       :clj Integer/MAX_VALUE #_100000 #_Double/POSITIVE_INFINITY))
 
-(defrecord Interval [offset length rightest])
+(defrecord Interval [offset length rightest greedy-left?]) ;;rightest node has greedy left border
 
 (defn reducing-fn
   ([] nil)
   ([{l-offset :offset l-rightest :rightest l-length :length :as left}
-    {r-offset :offset r-rightest :rightest r-length :length :as right}]
+    {r-offset :offset r-rightest :rightest r-length :length r-greedy-left? :greedy-left? :as right}]
      (cond (nil? left)
            right
            (nil? right)
@@ -19,7 +19,8 @@
            (map->Interval {:offset l-offset
                            :rightest (+ l-rightest r-offset r-rightest)
                            ;; left border of rightest interval in subtree relative to offset
-                           :length (max l-length (+ l-rightest r-offset r-length))}))))
+                           :length (max l-length (+ l-rightest r-offset r-length))
+                           :greedy-left? r-greedy-left?}))))
 
 
 (def tree-config {::tree/reducing-fn reducing-fn
@@ -33,10 +34,15 @@
 
 (defn root [loc] (tree/root loc))
 
-(defn by-offset [offset]
+(defn by-offset [offset greedy-left?]
   (fn [acc m]
-    (let [m (reducing-fn acc m)]
-      (< offset (+ (:offset m) (:rightest m))))))
+    (let [m (reducing-fn acc m)
+          current (+ (:rightest m) (:offset m))]
+      (or
+       (and (< offset current))
+       (and (= offset current)
+            (not (:greedy-left? m))
+            greedy-left?)))))
 
 (defn from-to [loc]
   (let [m (:metrics (tree/node loc))
@@ -68,10 +74,14 @@
                (drop 1)       ;; drop left sentinel
                (drop-last 1)  ;; drop right sentinel
                (vec))
-          
+
           (tree/leaf? (tree/node loc))
-          (recur (tree/next loc) (conj acc (from-to loc)))
-          
+          (let [from-to (from-to loc)
+                leaf (tree/node loc)
+                greedy-left? (:greedy-left? (:metrics leaf))
+                interval (assoc from-to :greedy-left? greedy-left?)]
+            (recur (tree/next loc) (conj acc interval)))
+
           :else
           (recur (tree/next loc) acc))))
 
@@ -94,10 +104,11 @@
                              :to (+ from length)}
                             interval)))))
 
-(defn make-leaf [offset length]
+(defn make-leaf [offset length greedy-left?]
   (tree/make-leaf (map->Interval {:offset offset
                                   :length length
-                                  :rightest 0})
+                                  :rightest 0
+                                  :greedy-left? greedy-left?})
                   tree-config))
 
 (defn intervals->tree [intervals]
@@ -110,20 +121,23 @@
 (defn make-interval-tree []
   (intervals->tree [(map->Interval {:offset   0
                                     :length   0
-                                    :rightest 0})
+                                    :rightest 0
+                                    :greedy-left? true
+                                    })
                     (map->Interval {:offset   plus-infinity
                                     :length   0
-                                    :rightest 0})]))
+                                    :rightest 0
+                                    :greedy-left? false})]))
 
-(defn insert-one [loc {:keys [from to] :as interval}]
-  (let [r-sibling-loc (tree/scan loc (by-offset from))
+(defn insert-one [loc {:keys [from to greedy-left?] :as interval}]
+  (let [r-sibling-loc (tree/scan loc (by-offset from greedy-left?))
         r-offset (-> r-sibling-loc tree/node :metrics :offset)
         {r-from :from r-to :to} (from-to r-sibling-loc)
         len (- to from)
         new-r-offset (- r-from from)
         offset (- r-offset new-r-offset)]
     (-> r-sibling-loc
-        (tree/insert-left (make-leaf offset len))
+        (tree/insert-left (make-leaf offset len greedy-left?))
         (update-leaf-offset (constantly new-r-offset)))))
 
 (defn add-intervals [itree intervals]
@@ -139,7 +153,7 @@
 
           (< offset loc-from)
           (root (update-offset loc #(+ size %)))
-          
+
           :else
           (recur (tree/next
                   (if (< offset loc-to)
@@ -152,7 +166,7 @@
   ([itree {:keys [from to] :as interval}]
    (loop [loc (zipper itree)
           markers []]
-     (cond 
+     (cond
        (tree/end? loc)
        markers
 
@@ -163,3 +177,15 @@
        :else
        (recur (scan-intersect loc interval)
               markers)))))
+
+
+(comment
+  (-> (make-interval-tree)
+      #_(tree/scan loc (by-offset from))
+      (add-intervals [{:from 1 :to 5 :greedy-left? false}])
+      (add-intervals [{:from 1 :to 10 :greedy-left? true}])
+      (add-intervals [{:from 1 :to 11 :greedy-left? false}])
+
+      (tree->intervals))
+
+  )
