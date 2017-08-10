@@ -163,7 +163,7 @@
 
 (defn add-intervals [itree intervals]
   (->> intervals
-       (map interval->tree-basis)
+       (mapv interval->tree-basis)
        (reduce insert-one (zipper itree))
        root))
 

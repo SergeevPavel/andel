@@ -506,16 +506,22 @@
 (defn current-time! []
   (.now js/Date))
 
+(defn get-execution-time [name]
+  (.-duration (aget (js/performance.getEntriesByName name) 0)))
+
 (defn bench [name f & {:keys [count] :or {count 10}}]
-  (let [start-time (current-time!)]
+  (let [start (str name "-START")
+        end (str name "-END")]
     (js/console.log (str "START BENCH " name))
-    (mapv (fn [f] (f)) (repeat count f))
-    (let [end-time (current-time!)
-          total-time (- end-time start-time)]
+    (js/performance.mark start)
+    (dotimes [_ count] (f))
+    (js/performance.mark end)
+    (js/performance.measure name start end)
+    (let [total (get-execution-time name)]
       (js/console.log (str "END BENCH: " name " "
-                            {:count count
-                             :total total-time
-                             :average (/ total-time count)})))))
+                           {:count count
+                            :total total
+                            :average (/ total count)})))))
 
 
 (defn bench-insert [markup]
@@ -573,22 +579,13 @@
            :count 1000)))
 
 
-
-(defn bench-editing [markup]
-  (let [itree (-> (intervals/make-interval-tree)
-                  (intervals/add-intervals markup))]
-    (bench "TREE EDITING"
-           (fn []
-             (let [cmd (rand-nth [:insert :delete])]
-               (case cmd
-                 :insert ))))))
-
 (bind-function! "ctrl-b" (fn [s]
                            (let [markup (:markup s)]
                                (bench-insert markup)
-                               (bench-insert-base markup)
-                               (bench-query markup)
-                               (bench-query-base markup)
-                               (bench-type-in markup)
-                               (bench-delete markup))
+                               #_(bench-insert-base markup)
+                               #_(bench-query markup)
+                               #_(bench-query-base markup)
+                               #_(bench-type-in markup)
+                               #_(bench-delete markup))
+                           (js/alert "BENCH DONE")
                            s))
