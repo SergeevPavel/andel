@@ -1,0 +1,1 @@
+{:rename-macros {}, :renames {}, :use-macros {}, :excludes #{}, :name andel.dev, :imports nil, :requires {core andel.core, andel.core andel.core, figwheel figwheel.client, figwheel.client figwheel.client}, :cljs.spec/speced-vars [], :uses nil, :cljs.spec/registry-ref [], :require-macros {figwheel figwheel.client, figwheel.client figwheel.client}, :doc nil}
